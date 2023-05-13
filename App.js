@@ -16,7 +16,7 @@ function App() {
   const [allImages, setAllImages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const pixabayAPIkey = "35965804-90af557b7918af82fe8b792f2";
+  const pixabayAPIkey = "YOUR API KEY";
 
   let randomImagePage = parseInt(Math.random() * 100);
 
