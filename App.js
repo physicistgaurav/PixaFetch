@@ -5,9 +5,13 @@ import {
   View,
   TouchableOpacity,
   Text,
+  Platform,
 } from "react-native";
 
+import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
+import * as Sharing from "expo-sharing";
+import mime from "mime";
 
 function App() {
   const [backgroundImage, setBackgroundImage] = useState(
@@ -16,20 +20,17 @@ function App() {
   const [allImages, setAllImages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const pixabayAPIkey = "YOUR API KEY";
+  const pixabayAPIkey = "35965804-90af557b7918af82fe8b792f2";
 
   let randomImagePage = parseInt(Math.random() * 100);
-
-  let Category = ["computer", "cat", "meme", "hot-girls", "naked"];
-
-  let randomCategory = parseInt(Math.random() * 6);
-  console.log(Category[randomCategory]);
 
   useEffect(() => {
     fetchNewBackgroundImage();
   }, []);
 
   const fetchNewBackgroundImage = () => {
+    let randomCategory = parseInt(Math.random() * 6);
+
     fetch(
       `https://pixabay.com/api/?key=${pixabayAPIkey}&q=${randomCategory}&orientation=vertical&safesearch=true&per_page=${randomImagePage}`
     )
@@ -55,13 +56,69 @@ function App() {
     setBackgroundImage(allImages[randomImage].largeImageURL);
   };
 
-  const saveImage = async (imageUri) => {
+  const downloadFile = async (fileUrl, fileName) => {
+    const downloadPath = FileSystem.documentDirectory;
+
     try {
+      const { uri } = await FileSystem.downloadAsync(
+        fileUrl,
+        downloadPath + fileName
+      );
+      if (Platform.OS === "android") {
+        await saveAndroidFile(uri, fileName?.split(" ")?.join(""));
+      } else {
+        await Sharing.shareAsync(uri);
+      }
+
+      await saveToGallery(uri);
+      console.log("Image downloaded and saved successfully");
+    } catch (error) {
+      console.error("Download error:", error);
+    }
+  };
+
+  const saveAndroidFile = async (fileUri, fileName = "File") => {
+    try {
+      const permissions = await MediaLibrary.requestPermissionsAsync();
+      if (!permissions.granted) {
+        console.log("Permission to access media library denied");
+        return;
+      }
+
+      const downloadDir = FileSystem.documentDirectory + "Download/";
+
+      const fileString = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Extract the file extension separately
+      const extensionIndex = fileName.lastIndexOf(".");
+      const fileExtension = fileName.slice(extensionIndex + 1);
+      const mimeType = mime.getType(fileExtension);
+      const base64Data = `data:${mimeType};base64,${fileString}`;
+
+      const asset = await MediaLibrary.createAssetAsync(base64Data);
+      await MediaLibrary.createAlbumAsync("Expo", asset, false);
+      console.log("Image saved to gallery successfully");
+    } catch (error) {
+      console.error("Error saving image to gallery:", error);
+    }
+  };
+
+  const saveToGallery = async (imageUri) => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+
+      if (status !== "granted") {
+        console.log("Permission to access media library denied");
+        return;
+      }
+
       const asset = await MediaLibrary.createAssetAsync(imageUri);
-      await MediaLibrary.createAlbumAsync("MyGallery", asset, false);
-      alert("Image saved to gallery!");
-    } catch (e) {
-      console.log("Error saving image to gallery", e);
+      await MediaLibrary.createAlbumAsync("Expo", asset, false);
+      console.log("Image saved to gallery successfully");
+    } catch (error) {
+      console.log("Error saving image to gallery:", error);
     }
   };
 
@@ -81,7 +138,8 @@ function App() {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.btn, { opacity: allImages.length > 0 ? 1 : 0.5 }]}
-          onPress={() => saveImage(backgroundImage)}
+          onPress={() => downloadFile(backgroundImage, "hello.jpg")}
+          disabled={isLoading || allImages.length === 0}
         >
           <Text style={styles.txt}>Save Background</Text>
         </TouchableOpacity>
